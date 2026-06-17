@@ -5,21 +5,21 @@ const { sendOtpEmail } = require("./emailService");
 
 const router = express.Router();
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 /**
- * POST /otp/send
+ * POST /api/otp/send
  * Body: { email: string }
- *
  * Generates and emails an OTP to the given address.
  */
 router.post("/send", async (req, res) => {
-  const { email } = req.body;
+  const email = (req.body.email || "").trim();
 
-  if (!email || typeof email !== "string") {
-    return res.status(400).json({ success: false, message: "A valid email address is required." });
+  if (!email) {
+    return res.status(400).json({ success: false, message: "Email address is required." });
   }
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
+  if (!EMAIL_REGEX.test(email)) {
     return res.status(400).json({ success: false, message: "Invalid email address format." });
   }
 
@@ -27,10 +27,8 @@ router.post("/send", async (req, res) => {
     const otp = generateOtp();
     const expiryMinutes = parseInt(process.env.OTP_EXPIRY_MINUTES) || 10;
 
-    // Remove any existing OTP before saving the new one
     deleteOtp(email);
     saveOtp(email, otp, expiryMinutes);
-
     await sendOtpEmail(email, otp, expiryMinutes);
 
     return res.status(200).json({
@@ -38,31 +36,46 @@ router.post("/send", async (req, res) => {
       message: `OTP sent to ${email}. It expires in ${expiryMinutes} minutes.`,
     });
   } catch (err) {
-    console.error("Failed to send OTP:", err.message);
-    return res.status(500).json({ success: false, message: "Failed to send OTP. Please try again." });
+    console.error("[otp/send] Error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send OTP. Please try again.",
+    });
   }
 });
 
 /**
- * POST /otp/verify
+ * POST /api/otp/verify
  * Body: { email: string, otp: string }
- *
- * Verifies the OTP submitted for the given email.
+ * Verifies the OTP for the given email.
  */
 router.post("/verify", (req, res) => {
-  const { email, otp } = req.body;
+  const email = (req.body.email || "").trim();
+  const otp = (req.body.otp || "").toString().trim();
 
   if (!email || !otp) {
     return res.status(400).json({ success: false, message: "Both email and OTP are required." });
   }
 
-  const result = verifyOtp(email, otp.toString().trim());
+  if (!EMAIL_REGEX.test(email)) {
+    return res.status(400).json({ success: false, message: "Invalid email address format." });
+  }
+
+  const result = verifyOtp(email, otp);
 
   if (!result.valid) {
     return res.status(400).json({ success: false, message: result.reason });
   }
 
   return res.status(200).json({ success: true, message: "OTP verified successfully." });
+});
+
+/**
+ * GET /api/otp/health
+ * Quick ping to confirm the OTP routes are reachable.
+ */
+router.get("/health", (_req, res) => {
+  res.status(200).json({ success: true, message: "OTP service is up." });
 });
 
 module.exports = router;
