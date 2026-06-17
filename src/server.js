@@ -42,14 +42,36 @@ app.get("/health", (req, res) => {
   });
 });
 
-// ─── OTP Routes ───────────────────────────────────────────────
+// OTP Routes
 app.use("/api/otp", otpRouter);
 
-// ─── 404 Handler ──────────────────────────────────────────────
-app.use((req, res, next) => {
+// Health Check
+app.get("/health", (req, res) => {
+  res.json({
+    success: true,
+    status: "ok"
+  });
+});
+
+// Root Route
+app.get("/", (req, res) => {
+  res.json({
+    success: true,
+    message: "OTP Verification API Running",
+    version: "1.0.0",
+    endpoints: {
+      health: "GET /health",
+      sendOTP: "POST /api/otp/send",
+      verifyOTP: "POST /api/otp/verify"
+    }
+  });
+});
+
+// 404 Handler
+app.use((req, res) => {
   res.status(404).json({
     success: false,
-    message: `Route '${req.method} ${req.url}' not found.`
+    message: `Route '${req.method} ${req.originalUrl}' not found.`
   });
 });
 
